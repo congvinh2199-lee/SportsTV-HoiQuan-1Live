@@ -1,12 +1,18 @@
 {
-  "name": "VINH LIVE - 08:22 03/03",
+  "name": "VINH LIVE 08:30",
   "groups": [
     {
-      "group_name": "TRỰC TIẾP BÓNG ĐÁ",
+      "group_name": "TRỰC TIẾP",
       "channels": [
         {
-          "name": "⚽ Melbourne City Vs Buriram Utd (Live)",
-          "link": "https://p-cdn5.livetv2.net/hls2/27_8_9_v2.m3u8"
+          "name": "⚽ China W Vs Bangladesh W",
+          "link": "https://p-cdn5.livetv2.net/hls2/27_8_89_v2.m3u8",
+          "referer": "https://sv2.hoiquan2.live/"
+        },
+        {
+          "name": "⚽ Melbourne City Vs Buriram Utd",
+          "link": "https://p-cdn5.livetv2.net/hls2/27_8_71_v2.m3u8",
+          "referer": "https://sv2.hoiquan2.live/"
         }
       ]
     }

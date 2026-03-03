@@ -1,3 +1,5 @@
 #EXTM3U
-#EXTINF:-1, ⚽ Melbourne City Vs Buriram Utd (Live)
-https://p-cdn5.livetv2.net/hls2/27_8_9_v2.m3u8|Referer=https://sv2.hoiquan2.live/
+#EXTINF:-1, ⚽ China W Vs Bangladesh W
+https://p-cdn5.livetv2.net/hls2/27_8_89_v2.m3u8|Referer=https://sv2.hoiquan2.live/&User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36
+#EXTINF:-1, ⚽ Melbourne City Vs Buriram Utd
+https://p-cdn5.livetv2.net/hls2/27_8_71_v2.m3u8|Referer=https://sv2.hoiquan2.live/&User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36
