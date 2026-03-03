@@ -4,56 +4,49 @@ import json
 import time
 
 def fetch_live_data():
+    # Sử dụng Session để giữ Cookie, giúp vượt qua kiểm tra của web
+    session = requests.Session()
     base_url = "https://sv2.hoiquan2.live"
-    # Quét cả trang chủ và trang danh mục để không sót trận
-    urls_to_scan = [
-        f"{base_url}/trang-chu",
-        f"{base_url}/truc-tiep/bong-da"
-    ]
     
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Referer": base_url
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "vi-VN,vi;q=0.9,fr-FR;q=0.8,fr;q=0.7,en-US;q=0.6,en;q=0.5",
+        "Referer": "https://www.google.com/"
     }
 
     channels = []
-    # Dùng set để tránh trùng lặp link
     found_paths = set()
 
     try:
-        # 1. Quét tìm link các trận đấu
-        for url in urls_to_scan:
-            try:
-                res = requests.get(url, headers=headers, timeout=15)
-                # Quét tất cả các chuỗi có định dạng /truc-tiep/tên-trận-đấu
-                matches = re.findall(r'/(?:truc-tiep|xem-truc-tiep)/[\w\-\./]+', res.text)
-                for p in matches:
-                    # Làm sạch link (loại bỏ dấu nháy hoặc ký tự thừa)
-                    clean_path = p.split('"')[0].split("'")[0].split(">")[0]
-                    if clean_path.count('/') >= 3:
-                        found_paths.add(clean_path)
-            except:
-                continue
+        # Bước 1: Truy cập trang chủ để lấy Cookie hợp lệ
+        session.get(base_url, headers=headers, timeout=15)
         
-        print(f"Phát hiện {len(found_paths)} trận đấu đang diễn ra...")
+        # Bước 2: Quét trang danh mục bóng đá
+        scan_url = f"{base_url}/truc-tiep/bong-da"
+        res = session.get(scan_url, headers=headers, timeout=15)
+        
+        # Regex tìm link trận đấu (quét cả định dạng cũ và mới)
+        matches = re.findall(r'/(?:truc-tiep|xem-truc-tiep)/[\w\-\./]+', res.text)
+        for p in matches:
+            clean_path = p.split('"')[0].split("'")[0].split(">")[0]
+            if clean_path.count('/') >= 3:
+                found_paths.add(clean_path)
 
-        # 2. Vào từng link trận đấu để lấy link stream m3u8
+        # Bước 3: Vào từng trận đấu để bóc tách link m3u8
         for path in found_paths:
             match_url = f"{base_url}{path}"
             try:
-                time.sleep(1) # Tránh bị server chặn do truy cập quá nhanh
-                m_res = requests.get(match_url, headers=headers, timeout=10)
+                # Nghỉ 2 giây để web không nghi ngờ là máy quét
+                time.sleep(2)
+                m_res = session.get(match_url, headers=headers, timeout=10)
                 
-                # Tìm link .m3u8 (thường nằm trong script phát video)
+                # Tìm link .m3u8
                 m3u8_links = re.findall(r'https?://[^\s\'"]+\.m3u8[^\s\'"]*', m_res.text)
                 
                 if m3u8_links:
-                    # Lấy link dài nhất vì thường chứa token xác thực đầy đủ
                     final_link = max(m3u8_links, key=len)
-                    
-                    # Tách tên trận đấu từ URL cho đẹp
-                    name_parts = path.strip('/').split('/')
-                    name_raw = name_parts[-1].split('.')[0].replace('-', ' ').title()
+                    name_raw = path.strip('/').split('/')[-1].split('.')[0].replace('-', ' ').title()
                     
                     channels.append({
                         "name": f"⚽ {name_raw}",
@@ -64,33 +57,19 @@ def fetch_live_data():
                 continue
 
     except Exception as e:
-        print(f"Lỗi quá trình quét: {e}")
+        print(f"Lỗi: {e}")
 
-    # --- XUẤT FILE 1: live.json (Cho SportsTV) ---
-    json_channels = []
-    for ch in channels:
-        json_channels.append({
-            "name": ch["name"],
-            "link": ch["link"],
-            "headers": {
-                "User-Agent": headers["User-Agent"],
-                "Referer": ch["origin_page"] # Quan trọng: Giả lập Referer đúng trang trận đấu
-            }
-        })
-
+    # Ghi file JSON cho SportsTV
+    json_channels = [{"name": ch["name"], "link": ch["link"], "headers": {"User-Agent": headers["User-Agent"], "Referer": ch["origin_page"]}} for ch in channels]
+    
     with open("live.json", "w", encoding="utf-8") as f:
-        json.dump({
-            "name": f"HỘI QUÁN LIVE - {time.strftime('%H:%M')}", 
-            "groups": [{"group_name": "TRỰC TIẾP", "channels": json_channels}]
-        }, f, ensure_ascii=False, indent=2)
+        json.dump({"name": f"LIVE {time.strftime('%H:%M')}", "groups": [{"group_name": "TRỰC TIẾP", "channels": json_channels}]}, f, ensure_ascii=False, indent=2)
 
-    # --- XUẤT FILE 2: list.m3u (Cho Monplayer) ---
+    # Ghi file M3U cho Monplayer
     with open("list.m3u", "w", encoding="utf-8") as f:
         f.write("#EXTM3U\n")
         for ch in channels:
-            f.write(f'#EXTINF:-1, {ch["name"]}\n')
-            # Thêm Referer trực tiếp vào link cho các app hỗ trợ chuẩn này
-            f.write(f'{ch["link"]}|Referer={ch["origin_page"]}&User-Agent={headers["User-Agent"]}\n')
+            f.write(f'#EXTINF:-1, {ch["name"]}\n{ch["link"]}|Referer={ch["origin_page"]}&User-Agent={headers["User-Agent"]}\n')
 
 if __name__ == "__main__":
     fetch_live_data()
