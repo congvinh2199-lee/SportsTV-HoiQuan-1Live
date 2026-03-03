@@ -13,48 +13,57 @@ def fetch_live_data():
 
     channels = []
     try:
+        # 1. Lấy trang chủ
         response = requests.get(home_url, headers=headers, timeout=15)
+        
+        # 2. Tìm TẤT CẢ các link có chữ "truc-tiep" (không phân biệt giải đấu)
+        # Regex cực mạnh để bắt mọi định dạng link trận đấu
         matches = re.findall(r'/truc-tiep/[^"\'>\s]+', response.text)
-        matches = list(dict.fromkeys(matches))
+        matches = list(dict.fromkeys(matches)) # Xóa link trùng
+
+        print(f"Tìm thấy {len(matches)} trận đấu tiềm năng...")
 
         for path in matches:
+            # Chỉ lấy các link liên quan đến bóng đá/thể thao
+            if not any(word in path for word in ["bong-da", "the-thao", "sea-games", "cup"]):
+                continue
+                
             match_url = f"{base_url}{path}"
             try:
+                # 3. Vào từng trận bóc tách link m3u8
                 m_res = requests.get(match_url, headers=headers, timeout=10)
+                # Tìm link stream thật (thường chứa wsSession hoặc token)
                 m3u8_links = re.findall(r'https?://[^\s\'"]+\.m3u8[^\s\'"]*', m_res.text)
                 
                 if m3u8_links:
-                    final_link = max(m3u8_links, key=len)
-                    name_raw = path.split('/')[-1].replace('-', ' ').title()
+                    final_link = max(m3u8_links, key=len) # Link dài nhất thường là link chuẩn
+                    
+                    # Tự động trích xuất tên trận đấu từ đường dẫn URL
+                    raw_name = path.split('/')[-1].split('.')[0].replace('-', ' ').title()
                     
                     channels.append({
-                        "name": f"⚽ {name_raw}",
+                        "name": f"⚽ {raw_name}",
                         "link": final_link
                     })
+                    print(f"Thành công: {raw_name}")
             except:
                 continue
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Lỗi quét: {e}")
 
-    # Nếu không có trận nào
+    # Nếu hoàn toàn không có trận nào đang đá
     if not channels:
-        channels = [{"name": "📺 Dang cap nhat tran dau...", "link": "https://tftv0gr3uomttgr31hcjt8rzdncbafi1g1hdcgyhdrpjqci1gq3mpcfhgg3dq.100ycdn.com/live/kplus_sport1/playlist.m3u8"}]
+        channels = [{"name": "📺 Chờ trận đấu tiếp theo...", "link": "https://tftv0gr3uomttgr31hcjt8rzdncbafi1g1hdcgyhdrpjqci1gq3mpcfhgg3dq.100ycdn.com/live/kplus_sport1/playlist.m3u8"}]
 
-    # --- XUẤT FILE 1: live.json (Cho SportsTV) ---
-    result_json = {
-        "name": f"SportsTV LIVE - {time.strftime('%H:%M')}",
-        "groups": [{"group_name": "TRỰC TIẾP", "channels": channels}]
-    }
+    # Ghi file JSON cho SportsTV
     with open("live.json", "w", encoding="utf-8") as f:
-        json.dump(result_json, f, ensure_ascii=False, indent=2)
+        json.dump({"name": f"LIVE {time.strftime('%H:%M')}", "groups": [{"group_name": "BÓNG ĐÁ", "channels": channels}]}, f, ensure_ascii=False, indent=2)
 
-    # --- XUẤT FILE 2: list.m3u (Cho Monplayer - CHUẨN MỚI) ---
+    # Ghi file M3U cho Monplayer
     with open("list.m3u", "w", encoding="utf-8") as f:
         f.write("#EXTM3U\n")
         for ch in channels:
-            # Monplayer cần Header Referer để xem được, chúng ta nhét thẳng vào link theo chuẩn M3U
-            f.write(f'#EXTINF:-1, {ch["name"]}\n')
-            f.write(f'{ch["link"]}|Referer={base_url}/\n')
+            f.write(f'#EXTINF:-1, {ch["name"]}\n{ch["link"]}|Referer={base_url}/\n')
 
 if __name__ == "__main__":
     fetch_live_data()
