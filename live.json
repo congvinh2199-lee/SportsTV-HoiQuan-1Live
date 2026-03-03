@@ -1,13 +1,12 @@
 {
-  "name": "LIVE 08:17",
+  "name": "VINH LIVE - 08:22 03/03",
   "groups": [
     {
-      "group_name": "TRỰC TIẾP",
+      "group_name": "TRỰC TIẾP BÓNG ĐÁ",
       "channels": [
         {
-          "name": "⚽ Melbourne City Vs Buriram Utd (Manual)",
-          "link": "https://p-cdn5.livetv2.net/hls2/27_8_9_v2.m3u8",
-          "note": "He thong dang quet tu dong..."
+          "name": "⚽ Melbourne City Vs Buriram Utd (Live)",
+          "link": "https://p-cdn5.livetv2.net/hls2/27_8_9_v2.m3u8"
         }
       ]
     }
