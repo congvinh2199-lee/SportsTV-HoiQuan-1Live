@@ -1,11 +1,11 @@
 {
-  "name": "SportsTV LIVE - 08:06",
+  "name": "LIVE 08:13",
   "groups": [
     {
-      "group_name": "TRỰC TIẾP",
+      "group_name": "BÓNG ĐÁ",
       "channels": [
         {
-          "name": "📺 Dang cap nhat tran dau...",
+          "name": "📺 Chờ trận đấu tiếp theo...",
           "link": "https://tftv0gr3uomttgr31hcjt8rzdncbafi1g1hdcgyhdrpjqci1gq3mpcfhgg3dq.100ycdn.com/live/kplus_sport1/playlist.m3u8"
         }
       ]
