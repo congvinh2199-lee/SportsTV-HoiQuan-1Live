@@ -1,11 +1,13 @@
-import requests
+import cloudscraper
 import json
 import time
 import re
 
 def fetch_live_data():
+    # Khởi tạo bộ vượt tường lửa Cloudflare
+    scraper = cloudscraper.create_scraper()
     base_url = "https://sv2.hoiquan2.live"
-    # Đây là link API ẩn chứa danh sách trận đấu của Hội Quán
+    # API chứa danh sách các trận đấu đang phát
     api_url = "https://api.hoiquan2.live/api/matches/live"
     
     headers = {
@@ -17,30 +19,32 @@ def fetch_live_data():
 
     channels = []
     try:
-        # 1. Gửi yêu cầu thẳng đến API dữ liệu
-        res = requests.get(api_url, headers=headers, timeout=15)
-        data = res.json() # Chuyển dữ liệu về dạng danh sách
+        # 1. Truy cập API để lấy danh sách trận đấu
+        res = scraper.get(api_url, headers=headers, timeout=15)
+        if res.status_code != 200:
+            print(f"Không thể kết nối API (Lỗi {res.status_code})")
+            return
+            
+        data = res.json()
 
-        # 2. Duyệt qua từng trận đấu trong dữ liệu trả về
+        # 2. Duyệt qua từng trận đấu
         for match in data.get('data', []):
-            match_name = match.get('name', 'Trận đấu không tên')
+            match_name = match.get('name', 'Trận đấu đang diễn ra')
             slug = match.get('slug', '')
             match_id = match.get('id', '')
-            
-            # Tạo link trang trận đấu để làm Referer
             match_page = f"{base_url}/truc-tiep/bong-da/{slug}/{match_id}"
             
-            # Lấy link stream (Thường nằm trong trường 'stream_url' hoặc phải vào trang con)
-            # Nếu API trả về link stream luôn:
+            # Ưu tiên lấy link stream trực tiếp từ API
             stream_url = match.get('stream_url')
             
-            # Nếu không có link stream trong API, ta vào trang con lấy (dùng lại logic cũ)
+            # Nếu API không có link, truy cập trang chi tiết để bóc tách m3u8
             if not stream_url:
                 try:
-                    time.sleep(1)
-                    m_res = requests.get(match_page, headers=headers, timeout=10)
+                    time.sleep(1.5) # Nghỉ để tránh bị quét
+                    m_res = scraper.get(match_page, headers=headers, timeout=10)
                     m3u8_links = re.findall(r'https?://[^\s\'"]+\.m3u8[^\s\'"]*', m_res.text)
                     if m3u8_links:
+                        # Chọn link dài nhất thường là link chuẩn có Token
                         stream_url = max(m3u8_links, key=len)
                 except:
                     continue
@@ -53,9 +57,9 @@ def fetch_live_data():
                 })
 
     except Exception as e:
-        print(f"Lỗi API: {e}")
+        print(f"Lỗi hệ thống: {e}")
 
-    # --- XUẤT FILE JSON (SportsTV) ---
+    # --- XUẤT FILE JSON (Dùng cho SportsTV) ---
     json_channels = []
     for ch in channels:
         json_channels.append({
@@ -68,13 +72,17 @@ def fetch_live_data():
         })
     
     with open("live.json", "w", encoding="utf-8") as f:
-        json.dump({"name": f"LIVE {time.strftime('%H:%M')}", "groups": [{"group_name": "BÓNG ĐÁ", "channels": json_channels}]}, f, ensure_ascii=False, indent=2)
+        json.dump({
+            "name": f"HỘI QUÁN LIVE - {time.strftime('%H:%M')}", 
+            "groups": [{"group_name": "BÓNG ĐÁ TRỰC TIẾP", "channels": json_channels}]
+        }, f, ensure_ascii=False, indent=2)
 
-    # --- XUẤT FILE M3U (Monplayer) ---
+    # --- XUẤT FILE M3U (Dùng cho Monplayer/OTT Navigator) ---
     with open("list.m3u", "w", encoding="utf-8") as f:
         f.write("#EXTM3U\n")
         for ch in channels:
-            f.write(f'#EXTINF:-1, {ch["name"]}\n{ch["link"]}|Referer={ch["referer"]}&User-Agent={headers["User-Agent"]}\n')
+            f.write(f'#EXTINF:-1, {ch["name"]}\n')
+            f.write(f'{ch["link"]}|Referer={ch["referer"]}&User-Agent={headers["User-Agent"]}\n')
 
 if __name__ == "__main__":
     fetch_live_data()
