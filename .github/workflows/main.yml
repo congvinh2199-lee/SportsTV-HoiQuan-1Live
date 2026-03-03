@@ -23,7 +23,7 @@ jobs:
           python-version: '3.9'
 
       - name: Install dependencies
-        run: pip install requests
+        run: pip install requests cloudscraper
 
       - name: Run bot
         run: python bot.py
