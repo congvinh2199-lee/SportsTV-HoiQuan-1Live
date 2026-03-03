@@ -1,18 +1,16 @@
 {
-  "name": "VINH LIVE 08:30",
+  "name": "LIVE 08:36",
   "groups": [
     {
-      "group_name": "TRỰC TIẾP",
+      "group_name": "BÓNG ĐÁ",
       "channels": [
         {
-          "name": "⚽ China W Vs Bangladesh W",
-          "link": "https://p-cdn5.livetv2.net/hls2/27_8_89_v2.m3u8",
-          "referer": "https://sv2.hoiquan2.live/"
-        },
-        {
-          "name": "⚽ Melbourne City Vs Buriram Utd",
-          "link": "https://p-cdn5.livetv2.net/hls2/27_8_71_v2.m3u8",
-          "referer": "https://sv2.hoiquan2.live/"
+          "name": "📺 Chờ trận đấu tiếp theo...",
+          "link": "https://tftv0gr3uomttgr31hcjt8rzdncbafi1g1hdcgyhdrpjqci1gq3mpcfhgg3dq.100ycdn.com/live/kplus_sport1/playlist.m3u8",
+          "headers": {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Referer": "https://sv2.hoiquan2.live"
+          }
         }
       ]
     }
