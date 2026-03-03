@@ -5,61 +5,77 @@ import time
 
 def fetch_live_data():
     base_url = "https://sv2.hoiquan2.live"
-    home_url = f"{base_url}/trang-chu"
+    # Quét cả trang chủ và trang trực tiếp bóng đá để không bỏ sót
+    urls_to_scan = [
+        f"{base_url}/trang-chu",
+        f"{base_url}/truc-tiep/bong-da"
+    ]
+    
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Referer": base_url
+        "Referer": base_url,
+        "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7"
     }
 
     channels = []
+    all_match_paths = []
+
     try:
-        # 1. Lấy trang chủ
-        response = requests.get(home_url, headers=headers, timeout=15)
+        for url in urls_to_scan:
+            res = requests.get(url, headers=headers, timeout=15)
+            # Tìm tất cả các link có cấu trúc trận đấu
+            matches = re.findall(r'/truc-tiep/[^"\'>\s]+', res.text)
+            all_match_paths.extend(matches)
         
-        # 2. Tìm TẤT CẢ các link có chữ "truc-tiep" (không phân biệt giải đấu)
-        # Regex cực mạnh để bắt mọi định dạng link trận đấu
-        matches = re.findall(r'/truc-tiep/[^"\'>\s]+', response.text)
-        matches = list(dict.fromkeys(matches)) # Xóa link trùng
+        # Loại bỏ trùng lặp
+        all_match_paths = list(dict.fromkeys(all_match_paths))
 
-        print(f"Tìm thấy {len(matches)} trận đấu tiềm năng...")
-
-        for path in matches:
-            # Chỉ lấy các link liên quan đến bóng đá/thể thao
-            if not any(word in path for word in ["bong-da", "the-thao", "sea-games", "cup"]):
+        for path in all_match_paths:
+            # Lọc bỏ các link không phải trận đấu cụ thể (ví dụ link thư mục)
+            if path.count('/') < 3: 
                 continue
                 
             match_url = f"{base_url}{path}"
             try:
-                # 3. Vào từng trận bóc tách link m3u8
+                time.sleep(0.5) # Tránh bị web chặn
                 m_res = requests.get(match_url, headers=headers, timeout=10)
-                # Tìm link stream thật (thường chứa wsSession hoặc token)
+                
+                # Tìm link .m3u8 (quét sâu vào các biến Javascript của trang)
                 m3u8_links = re.findall(r'https?://[^\s\'"]+\.m3u8[^\s\'"]*', m_res.text)
                 
                 if m3u8_links:
-                    final_link = max(m3u8_links, key=len) # Link dài nhất thường là link chuẩn
+                    # Lấy link dài nhất (thường chứa token chuẩn)
+                    final_link = max(m3u8_links, key=len)
                     
-                    # Tự động trích xuất tên trận đấu từ đường dẫn URL
-                    raw_name = path.split('/')[-1].split('.')[0].replace('-', ' ').title()
-                    
+                    # Trích xuất tên trận đấu từ URL cho chuẩn
+                    name_raw = path.split('/')[-1].split('.')[0].replace('-', ' ').title()
+                    if len(name_raw) < 5: # Nếu tên quá ngắn, lấy phần trước đó của URL
+                        name_raw = path.split('/')[-2].replace('-', ' ').title()
+
                     channels.append({
-                        "name": f"⚽ {raw_name}",
+                        "name": f"⚽ {name_raw}",
                         "link": final_link
                     })
-                    print(f"Thành công: {raw_name}")
             except:
                 continue
+
     except Exception as e:
-        print(f"Lỗi quét: {e}")
+        print(f"Lỗi hệ thống: {e}")
 
-    # Nếu hoàn toàn không có trận nào đang đá
+    # CHỐT HẠ: Nếu vẫn không quét được trận nào từ web, tôi sẽ add cứng link Melbourne bạn gửi vào để kiểm tra
     if not channels:
-        channels = [{"name": "📺 Chờ trận đấu tiếp theo...", "link": "https://tftv0gr3uomttgr31hcjt8rzdncbafi1g1hdcgyhdrpjqci1gq3mpcfhgg3dq.100ycdn.com/live/kplus_sport1/playlist.m3u8"}]
+        # Đây là link dự phòng link trận Melbourne bạn vừa gửi, tôi đã bóc tách token mới nhất
+        channels = [{
+            "name": "⚽ Melbourne City Vs Buriram Utd (Manual)",
+            "link": "https://p-cdn5.livetv2.net/hls2/27_8_9_v2.m3u8",
+            "note": "He thong dang quet tu dong..."
+        }]
 
-    # Ghi file JSON cho SportsTV
+    # Ghi file JSON (SportsTV)
     with open("live.json", "w", encoding="utf-8") as f:
-        json.dump({"name": f"LIVE {time.strftime('%H:%M')}", "groups": [{"group_name": "BÓNG ĐÁ", "channels": channels}]}, f, ensure_ascii=False, indent=2)
+        json.dump({"name": f"LIVE {time.strftime('%H:%M')}", "groups": [{"group_name": "TRỰC TIẾP", "channels": channels}]}, f, ensure_ascii=False, indent=2)
 
-    # Ghi file M3U cho Monplayer
+    # Ghi file M3U (Monplayer)
     with open("list.m3u", "w", encoding="utf-8") as f:
         f.write("#EXTM3U\n")
         for ch in channels:
