@@ -2,7 +2,7 @@ name: Auto Update SportsTV
 
 on:
   schedule:
-    - cron: '*/20 * * * *' # Tự động chạy mỗi 20 phút
+    - cron: '*/5 * * * *' # Tự động chạy mỗi 20 phút
   workflow_dispatch: # Cho phép nhấn nút chạy thủ công
 
 jobs:
