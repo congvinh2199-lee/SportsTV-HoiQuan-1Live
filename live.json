@@ -1,9 +1,18 @@
 {
-  "name": "LIVE 08:46",
+  "name": "SPORTS TV - TEST",
   "groups": [
     {
       "group_name": "TRỰC TIẾP",
-      "channels": []
+      "channels": [
+        {
+          "name": "⚽ Atletico San Luis vs Mazatlan",
+          "link": "https://cdn.hoiquan2.live/live/5143/index.m3u8",
+          "headers": {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Referer": "https://sv2.hoiquan2.live/"
+          }
+        }
+      ]
     }
   ]
 }
