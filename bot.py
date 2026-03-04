@@ -1,88 +1,102 @@
-import cloudscraper
+import requests
 import json
 import time
 import re
+import subprocess
+import base64
 
-def fetch_live_data():
-    # Khởi tạo bộ vượt tường lửa Cloudflare
-    scraper = cloudscraper.create_scraper()
-    base_url = "https://sv2.hoiquan2.live"
-    # API chứa danh sách các trận đấu đang phát
-    api_url = "https://api.hoiquan2.live/api/matches/live"
+class HoiQuanCrawler:
+    def __init__(self):
+        self.host = "https://sv2.hoiquan2.live"
+        self.api_host = "https://api.hoiquan2.live"
+        self.session = requests.Session()
+        self.headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Referer": self.host + "/",
+            "Origin": self.host,
+            "Accept": "*/*"
+        }
+
+    def get_matches(self):
+        print(f"[{time.strftime('%H:%M:%S')}] Đang quét danh sách trận đấu...")
+        try:
+            # Tham khảo logic plugin: Lấy data từ khối __NEXT_DATA__
+            res = self.session.get(f"{self.host}/trang-chu", headers=self.headers, timeout=15)
+            pattern = r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>'
+            json_str = re.search(pattern, res.text).group(1)
+            data = json.loads(json_str)
+            
+            # Tìm danh sách trận đấu trong cấu trúc Next.js props
+            matches = []
+            queries = data.get('props', {}).get('pageProps', {}).get('dehydratedState', {}).get('queries', [])
+            for q in queries:
+                state_data = q.get('state', {}).get('data', [])
+                if isinstance(state_data, list):
+                    for item in state_data:
+                        if 'slug' in item and 'id' in item:
+                            matches.append(item)
+            return matches
+        except Exception as e:
+            print(f"Lỗi lấy danh sách: {e}")
+            return []
+
+    def get_stream_link(self, match):
+        match_url = f"{self.host}/truc-tiep/{match['sport_type']}/{match['slug']}/{match['id']}"
+        print(f"--- Đang phân tích: {match.get('name', match['slug'])}")
+        
+        try:
+            # Logic quan trọng: Trang web thường fetch link từ 1 endpoint ẩn 
+            # hoặc nhúng Base64 vào script.
+            res = self.session.get(match_url, headers=self.headers, timeout=10)
+            
+            # 1. Tìm link m3u8 trực tiếp bằng regex mạnh
+            m3u8 = re.search(r'(https?://[^\s\'"]+\.m3u8[^\s\'"]*)', res.text)
+            if m3u8:
+                return m3u8.group(1)
+            
+            # 2. Dự phòng: Tìm chuỗi Base64 (nếu link bị mã hóa như một số plugin dev-kit xử lý)
+            b64_match = re.search(r'source["\']:\s*["\'](aHR0c[a-zA-Z0-9+/=]+)["\']', res.text)
+            if b64_match:
+                return base64.b64decode(b64_match.group(1)).decode('utf-8')
+                
+            return None
+        except:
+            return None
+
+def run_bot():
+    crawler = HoiQuanCrawler()
+    matches = crawler.get_matches()
     
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Referer": base_url,
-        "Origin": base_url,
-        "Accept": "application/json"
-    }
+    if not matches:
+        print("Không tìm thấy trận nào. Có thể cần cập nhật Headers.")
+        return
 
     channels = []
-    try:
-        # 1. Truy cập API để lấy danh sách trận đấu
-        res = scraper.get(api_url, headers=headers, timeout=15)
-        if res.status_code != 200:
-            print(f"Không thể kết nối API (Lỗi {res.status_code})")
-            return
-            
-        data = res.json()
+    for m in matches:
+        link = crawler.get_stream_link(m)
+        if link:
+            name = m.get('name', m['slug'].replace('-', ' ').title())
+            icon = "🏸" if "cau-long" in m['sport_type'] else "⚽"
+            channels.append({
+                "name": f"{icon} {name}",
+                "link": link,
+                "headers": {"User-Agent": crawler.headers["User-Agent"], "Referer": crawler.host + "/"}
+            })
+            print(f"✅ Đã lấy link!")
 
-        # 2. Duyệt qua từng trận đấu
-        for match in data.get('data', []):
-            match_name = match.get('name', 'Trận đấu đang diễn ra')
-            slug = match.get('slug', '')
-            match_id = match.get('id', '')
-            match_page = f"{base_url}/truc-tiep/bong-da/{slug}/{match_id}"
-            
-            # Ưu tiên lấy link stream trực tiếp từ API
-            stream_url = match.get('stream_url')
-            
-            # Nếu API không có link, truy cập trang chi tiết để bóc tách m3u8
-            if not stream_url:
-                try:
-                    time.sleep(1.5) # Nghỉ để tránh bị quét
-                    m_res = scraper.get(match_page, headers=headers, timeout=10)
-                    m3u8_links = re.findall(r'https?://[^\s\'"]+\.m3u8[^\s\'"]*', m_res.text)
-                    if m3u8_links:
-                        # Chọn link dài nhất thường là link chuẩn có Token
-                        stream_url = max(m3u8_links, key=len)
-                except:
-                    continue
-
-            if stream_url:
-                channels.append({
-                    "name": f"⚽ {match_name}",
-                    "link": stream_url,
-                    "referer": match_page
-                })
-
-    except Exception as e:
-        print(f"Lỗi hệ thống: {e}")
-
-    # --- XUẤT FILE JSON (Dùng cho SportsTV) ---
-    json_channels = []
-    for ch in channels:
-        json_channels.append({
-            "name": ch["name"],
-            "link": ch["link"],
-            "headers": {
-                "User-Agent": headers["User-Agent"],
-                "Referer": ch["referer"]
-            }
-        })
-    
+    # Xuất file và Push GitHub
+    output = {"name": f"HQ-DevKit {time.strftime('%H:%M')}", "groups": [{"group_name": "LIVE", "channels": channels}]}
     with open("live.json", "w", encoding="utf-8") as f:
-        json.dump({
-            "name": f"HỘI QUÁN LIVE - {time.strftime('%H:%M')}", 
-            "groups": [{"group_name": "BÓNG ĐÁ TRỰC TIẾP", "channels": json_channels}]
-        }, f, ensure_ascii=False, indent=2)
+        json.dump(output, f, ensure_ascii=False, indent=2)
 
-    # --- XUẤT FILE M3U (Dùng cho Monplayer/OTT Navigator) ---
-    with open("list.m3u", "w", encoding="utf-8") as f:
-        f.write("#EXTM3U\n")
-        for ch in channels:
-            f.write(f'#EXTINF:-1, {ch["name"]}\n')
-            f.write(f'{ch["link"]}|Referer={ch["referer"]}&User-Agent={headers["User-Agent"]}\n')
+    print(f"Tổng kết: {len(channels)} link. Đang đồng bộ...")
+    try:
+        subprocess.run(["git", "add", "live.json"], check=True)
+        subprocess.run(["git", "commit", "-m", f"DevKit Sync {time.strftime('%H:%M')}"], check=True)
+        subprocess.run(["git", "push"], check=True)
+        print("🚀 ĐÃ CẬP NHẬT LÊN GITHUB!")
+    except:
+        pass
 
 if __name__ == "__main__":
-    fetch_live_data()
+    run_bot()
